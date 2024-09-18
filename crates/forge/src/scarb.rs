@@ -7,7 +7,7 @@ use forge_runner::package_tests::raw::TestTargetRaw;
 use forge_runner::package_tests::TestTargetLocation;
 use scarb_api::ScarbCommand;
 use scarb_metadata::{PackageMetadata, TargetMetadata};
-use scarb_ui::args::PackagesFilter;
+use scarb_ui::args::{FeaturesSpec, PackagesFilter};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::io::ErrorKind;
@@ -31,20 +31,25 @@ impl PackageConfig for ForgeConfigFromScarb {
     }
 }
 
-pub fn build_contracts_with_scarb(filter: PackagesFilter) -> Result<()> {
+pub fn build_contracts_with_scarb(filter: PackagesFilter, features: FeaturesSpec) -> Result<()> {
     ScarbCommand::new_with_stdio()
         .arg("build")
         .packages_filter(filter)
+        .features(features)
         .run()
         .context("Failed to build contracts with Scarb")?;
     Ok(())
 }
 
-pub fn build_test_artifacts_with_scarb(filter: PackagesFilter) -> Result<()> {
+pub fn build_test_artifacts_with_scarb(
+    filter: PackagesFilter,
+    features: FeaturesSpec,
+) -> Result<()> {
     ScarbCommand::new_with_stdio()
         .arg("build")
         .arg("--test")
         .packages_filter(filter)
+        .features(features)
         .run()
         .context("Failed to build test artifacts with Scarb")?;
     Ok(())
@@ -167,7 +172,7 @@ mod tests {
                 [[tool.snforge.fork]]
                 name = "THIRD_FORK_NAME"
                 url = "http://some.rpc.url"
-                block_id.tag = "Latest"
+                block_id.tag = "latest"
                 "#,
                 package_name,
                 snforge_std_path
@@ -213,7 +218,7 @@ mod tests {
                         "THIRD_FORK_NAME".to_string(),
                         "http://some.rpc.url".to_string(),
                         "tag".to_string(),
-                        "Latest".to_string(),
+                        "latest".to_string(),
                     )
                 ],
                 fuzzer_runs: None,
@@ -221,7 +226,8 @@ mod tests {
                 max_n_steps: None,
                 detailed_resources: false,
                 save_trace_data: false,
-                build_profile: false
+                build_profile: false,
+                coverage: false
             }
         );
     }
@@ -401,7 +407,7 @@ mod tests {
             &scarb_metadata.workspace.members[0],
         )
         .unwrap_err();
-        assert!(format!("{err:?}").contains("block_id.tag can only be equal to Latest"));
+        assert!(format!("{err:?}").contains("block_id.tag can only be equal to latest"));
     }
 
     #[test]
@@ -449,7 +455,8 @@ mod tests {
                 max_n_steps: None,
                 detailed_resources: false,
                 save_trace_data: false,
-                build_profile: false
+                build_profile: false,
+                coverage: false
             }
         );
     }

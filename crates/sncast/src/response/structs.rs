@@ -1,12 +1,12 @@
+use super::explorer_link::OutputLink;
+use crate::helpers::block_explorer::LinkProvider;
 use camino::Utf8PathBuf;
 use conversions::serde::serialize::CairoSerialize;
+use indoc::formatdoc;
 use serde::{Deserialize, Serialize, Serializer};
-use starknet::core::types::FieldElement;
+use starknet::core::types::Felt;
 
 pub struct Decimal(pub u64);
-
-#[derive(Clone, Debug, Deserialize, CairoSerialize, PartialEq)]
-pub struct Felt(pub FieldElement);
 
 impl Serialize for Decimal {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -17,22 +17,11 @@ impl Serialize for Decimal {
     }
 }
 
-impl Serialize for Felt {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let val = self.0;
-        serializer.serialize_str(&format!("{val:#x}"))
-    }
-}
-
 fn serialize_as_decimal<S>(value: &Felt, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let val = value.0;
-    serializer.serialize_str(&format!("{val:#}"))
+    serializer.serialize_str(&format!("{value:#}"))
 }
 
 pub trait CommandResponse: Serialize {}
@@ -151,3 +140,52 @@ pub struct VerifyResponse {
 }
 
 impl CommandResponse for VerifyResponse {}
+
+impl OutputLink for InvokeResponse {
+    const TITLE: &'static str = "invocation";
+
+    fn format_links(&self, provider: Box<dyn LinkProvider>) -> String {
+        format!(
+            "transaction: {}",
+            provider.transaction(self.transaction_hash)
+        )
+    }
+}
+
+impl OutputLink for DeployResponse {
+    const TITLE: &'static str = "deployment";
+
+    fn format_links(&self, provider: Box<dyn LinkProvider>) -> String {
+        formatdoc!(
+            "
+            contract: {}
+            transaction: {}
+            ",
+            provider.contract(self.contract_address),
+            provider.transaction(self.transaction_hash)
+        )
+    }
+}
+
+impl OutputLink for DeclareResponse {
+    const TITLE: &'static str = "declaration";
+
+    fn format_links(&self, provider: Box<dyn LinkProvider>) -> String {
+        formatdoc!(
+            "
+            class: {}
+            transaction: {}
+            ",
+            provider.class(self.class_hash),
+            provider.transaction(self.transaction_hash)
+        )
+    }
+}
+
+impl OutputLink for AccountCreateResponse {
+    const TITLE: &'static str = "account creation";
+
+    fn format_links(&self, provider: Box<dyn LinkProvider>) -> String {
+        format!("account: {}", provider.contract(self.address))
+    }
+}

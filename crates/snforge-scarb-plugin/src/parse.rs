@@ -22,7 +22,7 @@ pub fn parse<T: AttributeInfo>(
     let virtual_file = db.intern_file(FileLongId::Virtual(VirtualFile {
         parent: None,
         name: "test_function".into(),
-        content: code.clone(),
+        content: Arc::from(code.as_str()),
         code_mappings: Default::default(),
         kind: FileKind::Module,
     }));
@@ -31,11 +31,17 @@ pub fn parse<T: AttributeInfo>(
         .items(db)
         .elements(db);
 
-    if let Some(ModuleItem::FreeFunction(func)) = elements.into_iter().next() {
-        Ok((simple_db, func))
-    } else {
-        Err(T::error("can be used only on a function"))
-    }
+    elements
+        .into_iter()
+        .find_map(|element| {
+            if let ModuleItem::FreeFunction(func) = element {
+                Some(func)
+            } else {
+                None
+            }
+        })
+        .map(|func| (simple_db, func))
+        .ok_or_else(|| T::error("can be used only on a function"))
 }
 
 struct InternalCollector;

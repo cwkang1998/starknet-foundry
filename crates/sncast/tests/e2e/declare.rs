@@ -10,8 +10,8 @@ use indoc::indoc;
 use shared::test_utils::output_assert::{assert_stderr_contains, assert_stdout_contains};
 use sncast::helpers::constants::{ARGENT_CLASS_HASH, BRAAVOS_CLASS_HASH, OZ_CLASS_HASH};
 use sncast::AccountType;
+use starknet::core::types::Felt;
 use starknet::core::types::TransactionReceipt::Declare;
-use starknet_crypto::FieldElement;
 use std::fs;
 use test_case::test_case;
 
@@ -57,7 +57,7 @@ async fn test_happy_case_eth(account: &str) {
 #[test_case(ARGENT_CLASS_HASH, AccountType::Argent; "argent_class_hash")]
 #[test_case(BRAAVOS_CLASS_HASH, AccountType::Braavos; "braavos_class_hash")]
 #[tokio::test]
-async fn test_happy_case_strk(class_hash: FieldElement, account_type: AccountType) {
+async fn test_happy_case_strk(class_hash: Felt, account_type: AccountType) {
     let contract_path = duplicate_contract_directory_with_salt(
         CONTRACTS_DIR.to_string() + "/map",
         "put",
@@ -127,13 +127,13 @@ async fn test_happy_case_versions(version: &str) {
     assert!(matches!(receipt, Declare(_)));
 }
 
-#[test_case(Some("99999999999999999"), None, None; "max_fee")]
-#[test_case(None, Some("9999"), None; "max_gas")]
-#[test_case(None, None, Some("999999999999"); "max_gas_unit_price")]
+#[test_case(Some("100000000000000000"), None, None; "max_fee")]
+#[test_case(None, Some("100000"), None; "max_gas")]
+#[test_case(None, None, Some("100000000000000"); "max_gas_unit_price")]
 #[test_case(None, None, None; "none")]
-#[test_case(Some("99999999999999999"), None, Some("999999999999"); "max_fee_max_gas_unit_price")]
-#[test_case(None, Some("9999"), Some("999999999999"); "max_gas_max_gas_unit_price")]
-#[test_case(Some("999999999999999"), Some("9999"), None; "max_fee_max_gas")]
+#[test_case(Some("10000000000000000000"), None, Some("100000000000000"); "max_fee_max_gas_unit_price")]
+#[test_case(None, Some("100000"), Some("100000000000000"); "max_gas_max_gas_unit_price")]
+#[test_case(Some("100000000000000000"), Some("100000"), None; "max_fee_max_gas")]
 #[tokio::test]
 async fn test_happy_case_strk_different_fees(
     max_fee: Option<&str>,
@@ -181,7 +181,9 @@ async fn test_happy_case_strk_different_fees(
     }
 
     let snapbox = runner(&args).current_dir(tempdir.path());
-    let output = snapbox.assert().success().get_output().stdout.clone();
+    let output = snapbox.assert().success();
+
+    let output = output.get_output().stdout.clone();
 
     let hash = get_transaction_hash(&output);
     let receipt = get_transaction_receipt(hash).await;
@@ -220,12 +222,15 @@ async fn test_invalid_version_and_token_combination(fee_token: &str, version: &s
     let snapbox = runner(&args).current_dir(tempdir.path());
 
     let output = snapbox.assert().failure();
+
     assert_stderr_contains(
         output,
         format!("Error: {fee_token} fee token is not supported for {version} declaration."),
     );
 }
+
 #[tokio::test]
+#[ignore = "#2459"]
 async fn test_happy_case_specify_package() {
     let tempdir = copy_directory_to_tempdir(CONTRACTS_DIR.to_string() + "/multiple_packages");
     let accounts_json_path = get_accounts_path("tests/data/accounts/accounts.json");
@@ -277,6 +282,8 @@ async fn test_contract_already_declared() {
         "--fee-token",
         "eth",
     ];
+
+    runner(&args).current_dir(tempdir.path()).assert().success();
 
     let snapbox = runner(&args).current_dir(tempdir.path());
     let output = snapbox.assert().success();
@@ -652,11 +659,20 @@ async fn test_no_scarb_profile() {
     ];
 
     let snapbox = runner(&args).current_dir(contract_path.path());
-    snapbox.assert().success().stdout_matches(indoc! {r"
-        ...
-        [WARNING] Profile profile5 does not exist in scarb, using default 'dev' profile.
-        command: declare
-        class_hash: [..]
-        transaction_hash: [..]
-    "});
+    let output = snapbox.assert().success();
+
+    assert_stdout_contains(
+        output,
+        indoc! {"
+            [..]
+            [WARNING] Profile profile5 does not exist in scarb, using 'release' profile.
+            command: declare
+            class_hash: [..]
+            transaction_hash: [..]
+
+            To see declaration details, visit:
+            class: [..]
+            transaction: [..]
+        "},
+    );
 }
